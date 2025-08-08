@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Connexion - Plateforme GPS</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 30px;
+      background-color: #f5f5f5;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    #loginScreen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background: #ffffffee;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #loginBox {
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      text-align: center;
+      width: 300px;
+    }
+    #loginBox input {
+      padding: 10px;
+      margin-top: 10px;
+      width: 100%;
+    }
+    #mainApp {
+      display: none;
+    }
+    .form-container, table, .dashboard, .buttons-bar, #chartContainer {
+      margin-top: 20px;
+    }
+    .form-container {
+      width: 400px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .form-container input, .form-container select, .form-container button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table, th, td {
+      border: 1px solid #007bff;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    td, th {
+      text-align: center;
+      padding: 10px;
+    }
+    .dashboard {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+    .dashboard div {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 200px;
+      text-align: center;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .search-bar {
+      width: 100%;
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .buttons-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .buttons-bar button {
+      flex: 1;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .buttons-bar button:hover {
+      background-color: #0056b3;
+    }
+    .action-links a {
+      margin: 0 5px;
+      text-decoration: none;
+      color: #007bff;
+      cursor: pointer;
+    }
+    .action-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 🔐 Écran de Connexion -->
+<div id="loginScreen">
+  <div id="loginBox">
+    <h2>Connexion requise</h2>
+    <input type="text" id="username" placeholder="Nom d'utilisateur" />
+    <input type="password" id="password" placeholder="Mot de passe" />
+    <button onclick="verifierLogin()">Se connecter</button>
+    <p id="loginError" style="color:red;"></p>
+  </div>
+</div>
+
+<!-- 🧭 Application principale -->
+<div id="mainApp">
+
+  <!-- Bouton Déconnexion -->
+  <div style="text-align: right;">
+    <button onclick="deconnexion()" style="padding: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">
+      🔒 Déconnexion
+    </button>
+  </div>
+
+  <h1>Plateforme de gestion des GPS</h1>
+
+  <div class="form-container">
+    <input type="hidden" id="editIndex" value="-1" />
+    <label>IMEI</label>
+    <input type="text" id="imei" placeholder="Entrez l'IMEI" />
+    <label>Modèle</label>
+    <input type="text" id="modele" placeholder="Entrez le modèle" />
+    <label>État</label>
+    <select id="etat">
+      <option value="Disponible">Disponible</option>
+      <option value="Occupé">Occupé</option>
+    </select>
+    <label>Technicien</label>
+    <input type="text" id="technicien" placeholder="Entrez le technicien" />
+    <button onclick="enregistrerGPS()">Enregistrer</button>
+  </div>
+
+  <div class="dashboard">
+    <div><h3>Disponibles</h3><p id="countDisponible">0</p></div>
+    <div><h3>Occupés</h3><p id="countOccupe">0</p></div>
+  </div>
+
+  <div class="buttons-bar">
+    <button onclick="exporterExcel()">📥 Exporter Excel</button>
+    <button onclick="window.print()">🖨️ Imprimer</button>
+  </div>
+
+  <input
+    type="text"
+    id="imeiSearchInput"
+    class="search-bar"
+    placeholder="🔍 Recherche IMEI"
+    onkeyup="filtrerParIMEI()"
+  />
+  <input
+    type="text"
+    id="technicienSearchInput"
+    class="search-bar"
+    placeholder="🔍 Recherche Technicien"
+    onkeyup="filtrerParTechnicien()"
+  />
+
+  <table>
+    <thead>
+      <tr>
+        <th>IMEI</th>
+        <th>Modèle</th>
+        <th>État</th>
+        <th>Technicien</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="gpsList">
+      <tr><td colspan="5">Aucune donnée</td></tr>
+    </tbody>
+  </table>
+
+  <div id="chartContainer">
+    <canvas id="gpsChart"></canvas>
+  </div>
+</div>
+
+<script>
+  // Authentification simple
+  const loginInfo = { username: "admin", password: "gps123" };
+
+  function verifierLogin() {
+    const user = document.getElementById("username").value.trim();
+    const pass = document.getElementById("password").value.trim();
+    if (user === loginInfo.username && pass === loginInfo.password) {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("mainApp").style.display = "block";
+      // Initialiser l'affichage
+      chargerDepuisLocalStorage();
+      afficherGPS();
+      mettreAJourTableauDeBord();
+      mettreAJourGraphique();
+    } else {
+      document.getElementById("loginError").innerText = "Identifiants incorrects.";
+    }
+  }
+
+  function deconnexion() {
+    document.getElementById("mainApp").style.display = "none";
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("username").value = "";
+    document.getElementById("password").value = "";
+    document.getElementById("loginError").innerText = "";
+  }
+
+  // Gestion des données GPS
+  let gpsData = [];
+
+  function sauvegarderDansLocalStorage() {
+    localStorage.setItem("gpsData", JSON.stringify(gpsData));
+  }
+
+  function chargerDepuisLocalStorage() {
+    const data = localStorage.getItem("gpsData");
+    if (data) gpsData = JSON.parse(data);
+    else gpsData = [];
+  }
+
+  function enregistrerGPS() {
+    const imei = document.getElementById("imei").value.trim();
+    const modele = document.getElementById("modele").value.trim();
+    const etat = document.getElementById("etat").value;
+    const technicien = document.getElementById("technicien").value.trim();
+    const editIndex = parseInt(document.getElementById("editIndex").value);
+
+    if (!imei || !modele || !etat || !technicien) {
+      alert("Tous les champs sont obligatoires.");
+      return;
+    }
+
+    const gps = { imei, modele, etat, technicien };
+
+    if (editIndex === -1) {
+      gpsData.push(gps);
+    } else {
+      gpsData[editIndex] = gps;
+    }
+
+    sauvegarderDansLocalStorage();
+    resetForm();
+    afficherGPS();
+    mettreAJourTableauDeBord();
+    mettreAJourGraphique();
+  }
+
+  function resetForm() {
+    ["imei", "modele", "technicien"].forEach(
+      (id) => (document.getElementById(id).value = "")
+    );
+    document.getElementById("etat").value = "Disponible";
+    document.getElementById("editIndex").value = -1;
+  }
+
+  function afficherGPS(data = gpsData) {
+    const tbody = document.getElementById("gpsList");
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5">Aucune donnée</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data
+      .map(
+        (g, i) => `
+      <tr>
+        <td>${g.imei}</td>
+        <td>${g.modele}</td>
+        <td>${g.etat}</td>
+        <td>${g.technicien}</td>
+        <td class="action-links">
+          <a onclick="modifierGPS(${i})">Modifier</a> |
+          <a onclick="supprimerGPS(${i})">Supprimer</a>
+        </td>
+      </tr>
+    `
+      )
+      .join("");
+  }
+
+  function modifierGPS(index) {
+    const g = gpsData[index];
+    document.getElementById("imei").value = g.imei;
+    document.getElementById("modele").value = g.modele;
+    document.getElementById("etat").value = g.etat;
+    document.getElementById("technicien").value = g.technicien;
+    document.getElementById("editIndex").value = index;
+  }
+
+  function supprimerGPS(index) {
+    if (confirm("Supprimer ce GPS ?")) {
+      gpsData.splice(index, 1);
+      sauvegarderDansLocalStorage();
+      afficherGPS();
+      mettreAJourTableauDeBord();
+      mettreAJourGraphique();
+    }
+  }
+
+  function filtrerParIMEI() {
+    const val = document.getElementById("imeiSearchInput").value.toLowerCase();
+    afficherGPS(gpsData.filter((g) => g.imei.toLowerCase().includes(val)));
+  }
+
+  function filtrerParTechnicien() {
+    const val = document
+      .getElementById("technicienSearchInput")
+      .value.toLowerCase();
+    afficherGPS(gpsData.filter((g) => g.technicien.toLowerCase().includes(val)));
+  }
+
+  function exporterExcel() {
+    if (gpsData.length === 0) {
+      alert("Aucune donnée à exporter.");
+      return;
+    }
+    const wsData = [
+      ["IMEI", "Modèle", "État", "Technicien"],
+      ...gpsData.map((g) => [g.imei, g.modele, g.etat, g.technicien]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "GPS");
+    XLSX.writeFile(wb, "GPS_Enregistres.xlsx");
+  }
+
+  function mettreAJourTableauDeBord() {
+    document.getElementById("countDisponible").textContent = gpsData.filter(
+      (g) => g.etat === "Disponible"
+    ).length;
+    document.getElementById("countOccupe").textContent = gpsData.filter(
+      (g) => g.etat === "Occupé"
+    ).length;
+  }
+
+  let chart;
+  function mettreAJourGraphique() {
+    const ctx = document.getElementById("gpsChart").getContext("2d");
+    const data = [
+      gpsData.filter((g) => g.etat === "Disponible").length,
+      gpsData.filter((g) => g.etat === "Occupé").length,
+    ];
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["Disponible", "Occupé"],
+        datasets: [
+          {
+            label: "GPS",
+            data,
+            backgroundColor: ["#28a745", "#ffc107"],
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            precision: 0,
+          },
+        },
+      },
+    });
+  }
+</script>
+
+</body>
+</html>
